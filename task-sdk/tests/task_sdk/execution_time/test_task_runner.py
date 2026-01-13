@@ -3911,7 +3911,7 @@ class TestTriggerDagRunOperator:
 
         expected_calls = [
             mock.call.send(
-                msg=SetXCom(
+                SetXCom(
                     key="trigger_dag_id",
                     value="test_dag",
                     dag_id="test_handle_trigger_dag_run",
@@ -3921,7 +3921,7 @@ class TestTriggerDagRunOperator:
                 ),
             ),
             mock.call.send(
-                msg=TriggerDagRun(
+                TriggerDagRun(
                     dag_id="test_dag",
                     run_id="test_run_id",
                     reset_dag_run=False,
@@ -3929,7 +3929,7 @@ class TestTriggerDagRunOperator:
                 ),
             ),
             mock.call.send(
-                msg=SetXCom(
+                SetXCom(
                     key="trigger_run_id",
                     value="test_run_id",
                     dag_id="test_handle_trigger_dag_run",
@@ -4045,7 +4045,7 @@ class TestTriggerDagRunOperator:
 
         expected_calls = [
             mock.call.send(
-                msg=SetXCom(
+                SetXCom(
                     key="trigger_dag_id",
                     value="test_dag",
                     dag_id="test_handle_trigger_dag_run_wait_for_completion",
@@ -4055,14 +4055,14 @@ class TestTriggerDagRunOperator:
                 ),
             ),
             mock.call.send(
-                msg=TriggerDagRun(
+                TriggerDagRun(
                     dag_id="test_dag",
                     run_id="test_run_id",
                     logical_date=datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
                 ),
             ),
             mock.call.send(
-                msg=SetXCom(
+                SetXCom(
                     key="trigger_run_id",
                     value="test_run_id",
                     dag_id="test_handle_trigger_dag_run_wait_for_completion",
@@ -4072,13 +4072,13 @@ class TestTriggerDagRunOperator:
                 ),
             ),
             mock.call.send(
-                msg=GetDagRunState(
+                GetDagRunState(
                     dag_id="test_dag",
                     run_id="test_run_id",
                 ),
             ),
             mock.call.send(
-                msg=GetDagRunState(
+                GetDagRunState(
                     dag_id="test_dag",
                     run_id="test_run_id",
                 ),
