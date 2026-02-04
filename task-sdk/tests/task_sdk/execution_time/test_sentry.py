@@ -26,12 +26,13 @@ from unittest import mock
 import pytest
 import uuid6
 
+from airflow._shared.timezones import timezone
 from airflow.providers.standard.operators.python import PythonOperator
-from airflow.sdk._shared.module_loading import import_string
-from airflow.sdk._shared.timezones import timezone
-from airflow.sdk.api.datamodels._generated import DagRun, DagRunState, DagRunType, TaskInstanceState
+from airflow.sdk.api.datamodels._generated import DagRun, DagRunState, DagRunType
 from airflow.sdk.execution_time.comms import GetTaskBreadcrumbs, TaskBreadcrumbsResult
 from airflow.sdk.execution_time.task_runner import RuntimeTaskInstance
+from airflow.utils.module_loading import import_string
+from airflow.utils.state import State
 
 from tests_common.test_utils.config import conf_vars
 
@@ -43,7 +44,7 @@ TASK_ID = "test_task"
 RUN_ID = "test_run"
 OPERATOR = "PythonOperator"
 TRY_NUMBER = 0
-STATE = TaskInstanceState.SUCCESS
+STATE = State.SUCCESS
 TASK_DATA = {
     "task_id": TASK_ID,
     "state": STATE,
@@ -54,20 +55,6 @@ TASK_DATA = {
 
 def before_send(_):
     pass
-
-
-class CustomIntegration:
-    """
-    Integration object to use in tests.
-
-    All instances of this class are equal to each other.
-    """
-
-    def __hash__(self):  # Implemented to satisfy Ruff.
-        return 0
-
-    def __eq__(self, other):
-        return type(self) is type(other)
 
 
 class CustomTransport:
@@ -183,30 +170,15 @@ class TestSentryHook:
 
         importlib.reload(sentry)
 
-    def test_prepare_to_enrich_errors(self, mock_sentry_sdk, sentry):
+    def test_init(self, mock_sentry_sdk, sentry):
         assert is_configured(sentry)
-
-        sentry.prepare_to_enrich_errors(executor_integration="")
         assert mock_sentry_sdk.integrations.logging.ignore_logger.mock_calls == [mock.call("airflow.task")]
         assert mock_sentry_sdk.init.mock_calls == [
             mock.call(
                 integrations=[],
                 default_integrations=False,
-                before_send="task_sdk.execution_time.test_sentry.before_send",
-            ),
-        ]
-
-    def test_prepare_to_enrich_errors_with_executor_integration(self, mock_sentry_sdk, sentry):
-        assert is_configured(sentry)
-
-        executor_integration = "task_sdk.execution_time.test_sentry.CustomIntegration"
-        sentry.prepare_to_enrich_errors(executor_integration)
-        assert mock_sentry_sdk.integrations.logging.ignore_logger.mock_calls == [mock.call("airflow.task")]
-        assert mock_sentry_sdk.init.mock_calls == [
-            mock.call(
-                integrations=[import_string("task_sdk.execution_time.test_sentry.CustomIntegration")()],
-                default_integrations=False,
-                before_send="task_sdk.execution_time.test_sentry.before_send",
+                before_send=import_string("task_sdk.execution_time.test_sentry.before_send"),
+                transport=None,
             ),
         ]
 
@@ -250,14 +222,13 @@ class TestSentryHook:
         Test transport gets passed to the sentry SDK
         """
         assert is_configured(sentry_custom_transport)
-
-        sentry_custom_transport.prepare_to_enrich_errors(executor_integration="")
         assert mock_sentry_sdk.integrations.logging.ignore_logger.mock_calls == [mock.call("airflow.task")]
         assert mock_sentry_sdk.init.mock_calls == [
             mock.call(
                 integrations=[],
                 default_integrations=False,
-                transport="task_sdk.execution_time.test_sentry.CustomTransport",
+                before_send=None,
+                transport=import_string("task_sdk.execution_time.test_sentry.CustomTransport"),
             ),
         ]
 
@@ -266,7 +237,7 @@ class TestSentryHook:
         Test before_send doesn't raise an exception when not set
         """
         assert is_configured(sentry_minimum)
-
-        sentry_minimum.prepare_to_enrich_errors(executor_integration="")
         assert mock_sentry_sdk.integrations.logging.ignore_logger.mock_calls == [mock.call("airflow.task")]
-        assert mock_sentry_sdk.init.mock_calls == [mock.call(integrations=[])]
+        assert mock_sentry_sdk.init.mock_calls == [
+            mock.call(integrations=[], before_send=None, transport=None),
+        ]

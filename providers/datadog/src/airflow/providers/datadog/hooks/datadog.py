@@ -22,7 +22,8 @@ from typing import Any
 
 from datadog import api, initialize
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseHook
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 

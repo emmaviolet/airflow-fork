@@ -40,7 +40,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import aiosmtplib
 
-from airflow.providers.common.compat.sdk import AirflowException, AirflowNotFoundException, BaseHook
+from airflow.exceptions import AirflowException, AirflowNotFoundException
+from airflow.providers.common.compat.sdk import BaseHook
 
 if TYPE_CHECKING:
     from airflow.providers.common.compat.sdk import Connection

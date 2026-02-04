@@ -23,11 +23,12 @@ from typing import TYPE_CHECKING, Any
 
 from azure.batch import models as batch_models
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseOperator
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseOperator
 from airflow.providers.microsoft.azure.hooks.batch import AzureBatchHook
 
 if TYPE_CHECKING:
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class AzureBatchOperator(BaseOperator):

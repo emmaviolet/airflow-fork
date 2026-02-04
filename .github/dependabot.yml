@@ -77,6 +77,16 @@ updates:
     cooldown:
       default-days: 4
     directories:
+      - /dev/react-plugin-tools/react_plugin_template
+    schedule:
+      interval: daily
+    groups:
+      ui-plugin-template-package-updates:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directories:
       - /providers/edge3/src/airflow/providers/edge3/plugins/www
     schedule:
       interval: daily

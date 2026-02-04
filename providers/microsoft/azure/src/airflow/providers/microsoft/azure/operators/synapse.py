@@ -21,13 +21,8 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode
 
-from airflow.providers.common.compat.sdk import (
-    AirflowException,
-    BaseHook,
-    BaseOperator,
-    BaseOperatorLink,
-    XCom,
-)
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook, BaseOperator, BaseOperatorLink, XCom
 from airflow.providers.microsoft.azure.hooks.synapse import (
     AzureSynapseHook,
     AzureSynapsePipelineHook,
@@ -40,7 +35,7 @@ if TYPE_CHECKING:
     from azure.synapse.spark.models import SparkBatchJobOptions
 
     from airflow.models.taskinstancekey import TaskInstanceKey
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class AzureSynapseRunSparkBatchOperator(BaseOperator):

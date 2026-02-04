@@ -21,13 +21,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from airflow.exceptions import AirflowException
 from airflow.providers.amazon.aws.hooks.sagemaker_unified_studio import (
     SageMakerNotebookHook,
 )
-from airflow.providers.common.compat.sdk import AirflowException, BaseSensorOperator
+from airflow.providers.common.compat.sdk import BaseSensorOperator
 
 if TYPE_CHECKING:
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class SageMakerNotebookSensor(BaseSensorOperator):

@@ -20,12 +20,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, TypeVar
 
-from airflow.providers.common.compat.sdk import DAG, Param, XComArg
+from airflow.models import Param
+from airflow.models.xcom_arg import XComArg
+from airflow.providers.common.compat.sdk import DAG
 
 if TYPE_CHECKING:
     from airflow.providers.common.compat.sdk import BaseOperator, MappedOperator
     from airflow.providers.openlineage.utils.utils import AnyOperator
-    from airflow.serialization.definitions.dag import SerializedDAG
+    from airflow.serialization.serialized_objects import SerializedDAG
 
     T = TypeVar("T", bound=DAG | BaseOperator | MappedOperator)
 

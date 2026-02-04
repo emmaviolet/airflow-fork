@@ -138,6 +138,20 @@ option_skip_mounting_local_volumes = click.option(
     "For example, when the PROD image is built from packages rather than from local sources.",
 )
 
+option_skip_docker_compose_deletion = click.option(
+    "--skip-docker-compose-deletion",
+    help="Skip deletion of docker-compose instance after the test",
+    envvar="SKIP_DOCKER_COMPOSE_DELETION",
+    is_flag=True,
+)
+option_skip_mounting_local_volumes = click.option(
+    "--skip-mounting-local-volumes",
+    is_flag=True,
+    default=False,
+    help="Skip mounting local volumes - useful when we do not want to iterate with modified local files. "
+    "For example, when the PROD image is built from packages rather than from local sources.",
+)
+
 
 @click.group(cls=BreezeGroup, name="testing", help="Tools that developers can use to run tests")
 def testing_group():

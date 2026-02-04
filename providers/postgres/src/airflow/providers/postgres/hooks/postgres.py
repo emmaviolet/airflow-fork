@@ -34,6 +34,7 @@ from airflow.providers.common.compat.sdk import (
     Connection,
     conf,
 )
+from airflow.providers.common.compat.sdk import Connection
 from airflow.providers.common.sql.hooks.sql import DbApiHook
 from airflow.providers.postgres.dialects.postgres import PostgresDialect
 

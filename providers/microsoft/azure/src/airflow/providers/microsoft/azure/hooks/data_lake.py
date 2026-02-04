@@ -32,7 +32,8 @@ from azure.storage.filedatalake import (
     FileSystemProperties,
 )
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseHook
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook
 from airflow.providers.microsoft.azure.utils import (
     AzureIdentityCredentialAdapter,
     add_managed_identity_connection_widgets,

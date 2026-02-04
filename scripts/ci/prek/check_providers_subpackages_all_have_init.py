@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # /// script
-# requires-python = ">=3.10,<3.11"
+# requires-python = ">=3.10"
 # dependencies = [
 #   "rich>=13.6.0",
 # ]
@@ -55,12 +55,8 @@ PATH_EXTENSION_STRING = '__path__ = __import__("pkgutil").extend_path(__path__, 
 
 ALLOWED_SUB_FOLDERS_OF_TESTS = ["unit", "system", "integration"]
 
-
-class _ErrorSignals:
-    should_fail: bool = False
-    fatal_error: bool = False
-
-
+should_fail = False
+fatal_error = False
 missing_init_dirs: list[Path] = []
 missing_path_extension_dirs: list[Path] = []
 
@@ -81,8 +77,10 @@ def _what_kind_of_test_init_py_needed(base_path: Path, folder: Path) -> tuple[bo
         if folder.name not in ALLOWED_SUB_FOLDERS_OF_TESTS:
             console.print(f"[red]Unexpected folder {folder} in {base_path}[/]")
             console.print(f"[yellow]Only {ALLOWED_SUB_FOLDERS_OF_TESTS} should be sub-folders of tests.[/]")
-            _ErrorSignals.should_fail = True
-            _ErrorSignals.fatal_error = True
+            global should_fail
+            global fatal_error
+            should_fail = True
+            fatal_error = True
         return True, True
     if depth == 2:
         # For known sub-packages that can occur in several packages we need to add __path__ extension
@@ -164,20 +162,20 @@ if __name__ == "__main__":
             init_file = missing_init_dir / "__init__.py"
             init_file.write_text("".join(prefixed_licensed_txt))
             console.print(f"[yellow]Added missing __init__.py file:[/] {init_file}")
-            _ErrorSignals.should_fail = True
+            should_fail = True
 
     for missing_extension_dir in missing_path_extension_dirs:
         init_file = missing_extension_dir / "__init__.py"
         init_file.write_text(init_file.read_text() + PATH_EXTENSION_STRING + "\n")
         console.print(f"[yellow]Added missing path extension to __init__.py file[/] {init_file}")
-        _ErrorSignals.should_fail = True
+        should_fail = True
 
-    if _ErrorSignals.should_fail:
+    if should_fail:
         console.print(
             "\n[yellow]The missing __init__.py files have been created. "
             "Please add these new files to a commit."
         )
-        if _ErrorSignals.fatal_error:
+        if fatal_error:
             console.print("[red]Also please remove the extra test folders listed above!")
         sys.exit(1)
     console.print("[green]All __init__.py files are present and have necessary extensions.[/]")

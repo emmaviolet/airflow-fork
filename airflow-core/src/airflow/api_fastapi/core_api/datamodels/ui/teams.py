@@ -14,7 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+<<<<<<<< HEAD:scripts/in_container/bin/run_mprocs
+# Generate mprocs configuration dynamically
+
+MPROCS_CONFIG_PATH="/files/mprocs.yaml"
+
+if ! uv run "/opt/airflow/scripts/in_container/bin/generate_mprocs_config.py" "${MPROCS_CONFIG_PATH}"; then
+    echo "Failed to generate mprocs configuration"
+    exit 1
+fi
+
+# Start mprocs with the generated configuration
+exec mprocs --config "${MPROCS_CONFIG_PATH}" --proc-list-title "Apache Airflow"
+========
 from __future__ import annotations
+
+from uuid import UUID
 
 from airflow.api_fastapi.core_api.base import BaseModel
 
@@ -22,6 +37,7 @@ from airflow.api_fastapi.core_api.base import BaseModel
 class TeamResponse(BaseModel):
     """Base serializer for Team."""
 
+    id: UUID
     name: str
 
 
@@ -30,3 +46,4 @@ class TeamCollectionResponse(BaseModel):
 
     teams: list[TeamResponse]
     total_entries: int
+>>>>>>>> origin/main:airflow-core/src/airflow/api_fastapi/core_api/datamodels/ui/teams.py

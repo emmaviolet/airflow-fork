@@ -25,7 +25,8 @@ from typing import Any
 import telegram
 import tenacity
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseHook
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook
 
 
 class TelegramHook(BaseHook):

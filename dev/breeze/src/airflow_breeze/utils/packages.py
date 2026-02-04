@@ -671,6 +671,12 @@ def get_license_files(provider_id: str) -> str:
     return str(["LICENSE", "NOTICE"]).replace('"', "'")
 
 
+def get_license_files(provider_id: str) -> str:
+    if provider_id == "fab":
+        return str(["LICENSE", "NOTICE", "3rd-party-licenses/LICENSES-*"]).replace('"', "'")
+    return str(["LICENSE", "NOTICE"]).replace('"', "'")
+
+
 def get_provider_jinja_context(
     provider_id: str,
     current_release_version: str,

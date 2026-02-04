@@ -28,7 +28,7 @@ import pytest_asyncio
 from google.cloud.container_v1 import ClusterManagerAsyncClient
 from google.cloud.container_v1.types import Cluster
 
-from airflow.providers.common.compat.sdk import AirflowException
+from airflow.exceptions import AirflowException
 from airflow.providers.google.cloud.hooks.kubernetes_engine import (
     GKEAsyncHook,
     GKEHook,
@@ -539,7 +539,7 @@ class TestGKEKubernetesAsyncHook:
             namespace=POD_NAMESPACE,
             follow=False,
             timestamps=True,
-            container=None,
+            container_name=None,
             since_seconds=None,
         )
         assert "Test string #1" in logs

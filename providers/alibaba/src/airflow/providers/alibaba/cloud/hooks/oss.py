@@ -26,7 +26,8 @@ from urllib.parse import urlsplit
 import oss2
 from oss2.exceptions import ClientError
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseHook
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook
 
 if TYPE_CHECKING:
     from airflow.providers.common.compat.sdk import Connection

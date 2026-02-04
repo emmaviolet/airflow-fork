@@ -21,9 +21,10 @@ from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any
 
+from airflow.exceptions import AirflowException
 from airflow.providers.apache.kafka.hooks.produce import KafkaProducerHook
-from airflow.providers.common.compat.module_loading import import_string
-from airflow.providers.common.compat.sdk import AirflowException, BaseOperator
+from airflow.providers.common.compat.sdk import BaseOperator
+from airflow.utils.module_loading import import_string
 
 local_logger = logging.getLogger("airflow")
 

@@ -226,26 +226,23 @@ class DagStateTrigger(BaseTrigger):
         elif self.execution_dates:
             runs_ids_or_dates = len(self.execution_dates)
 
-        cls_path, data = self.serialize()
-
         if AIRFLOW_V_3_0_PLUS:
-            data.update(  # update with {run_id: run_state} dict
-                await self.validate_count_dags_af_3(runs_ids_or_dates_len=runs_ids_or_dates)
-            )
-            yield TriggerEvent((cls_path, data))
+            data = await self.validate_count_dags_af_3(runs_ids_or_dates_len=runs_ids_or_dates)
+            yield TriggerEvent(data)
             return
         else:
             while True:
                 num_dags = await self.count_dags()
                 if num_dags == runs_ids_or_dates:
-                    yield TriggerEvent((cls_path, data))
+                    yield TriggerEvent(self.serialize())
                     return
                 await asyncio.sleep(self.poll_interval)
 
-    async def validate_count_dags_af_3(self, runs_ids_or_dates_len: int = 0) -> dict[str, str]:
+    async def validate_count_dags_af_3(self, runs_ids_or_dates_len: int = 0) -> dict[str, typing.Any]:
         from airflow.sdk.execution_time.task_runner import RuntimeTaskInstance
 
-        run_states: dict[str, str] = {}  # {run_id: run_state}
+        cls_path, data = self.serialize()
+
         while True:
             num_dags = await sync_to_async(RuntimeTaskInstance.get_dr_count)(
                 dag_id=self.dag_id,
@@ -260,8 +257,8 @@ class DagStateTrigger(BaseTrigger):
                             dag_id=self.dag_id,
                             run_id=run_id,
                         )
-                        run_states[run_id] = state
-                        return run_states
+                        data[run_id] = state
+                        return data
             await asyncio.sleep(self.poll_interval)
 
     if not AIRFLOW_V_3_0_PLUS:

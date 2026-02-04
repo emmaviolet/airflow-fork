@@ -41,6 +41,11 @@ from kubernetes.stream import stream
 from urllib3.exceptions import HTTPError
 
 from airflow.configuration import conf
+from airflow.exceptions import (
+    AirflowException,
+    AirflowSkipException,
+    TaskDeferred,
+)
 from airflow.providers.cncf.kubernetes import pod_generator
 from airflow.providers.cncf.kubernetes.backcompat.backwards_compat_converters import (
     convert_affinity,
@@ -60,7 +65,6 @@ from airflow.providers.cncf.kubernetes.kubernetes_helper_functions import (
     POD_NAME_MAX_LENGTH,
     add_unique_suffix,
     create_unique_id,
-    generic_api_retry,
 )
 from airflow.providers.cncf.kubernetes.pod_generator import PodGenerator
 from airflow.providers.cncf.kubernetes.triggers.pod import KubernetesPodTrigger
@@ -78,15 +82,12 @@ from airflow.providers.cncf.kubernetes.utils.pod_manager import (
     PodPhase,
 )
 from airflow.providers.cncf.kubernetes.version_compat import AIRFLOW_V_3_1_PLUS
-from airflow.providers.common.compat.sdk import XCOM_RETURN_KEY, AirflowSkipException, TaskDeferred
+from airflow.providers.common.compat.sdk import XCOM_RETURN_KEY
 
 if AIRFLOW_V_3_1_PLUS:
-    from airflow.sdk import BaseHook, BaseOperator
+    from airflow.sdk import BaseOperator
 else:
-    from airflow.hooks.base import BaseHook  # type: ignore[attr-defined, no-redef]
     from airflow.models import BaseOperator
-
-from airflow.providers.common.compat.sdk import AirflowException, AirflowNotFoundException
 from airflow.settings import pod_mutation_hook
 from airflow.utils import yaml
 from airflow.utils.helpers import prune_dict, validate_key
@@ -98,7 +99,12 @@ if TYPE_CHECKING:
 
     from airflow.providers.cncf.kubernetes.hooks.kubernetes import PodOperatorHookProtocol
     from airflow.providers.cncf.kubernetes.secret import Secret
-    from airflow.sdk import Context
+
+    try:
+        from airflow.sdk.definitions.context import Context
+    except ImportError:
+        # TODO: Remove once provider drops support for Airflow 2
+        from airflow.utils.context import Context
 
 alphanum_lower = string.ascii_lowercase + string.digits
 
@@ -118,10 +124,6 @@ class PodReattachFailure(AirflowException):
 
 class PodCredentialsExpiredFailure(AirflowException):
     """When pod fails to refresh credentials."""
-
-
-class FoundMoreThanOnePodFailure(AirflowException):
-    """When during reconnect more than one matching pod was found."""
 
 
 class KubernetesPodOperator(BaseOperator):
@@ -231,8 +233,7 @@ class KubernetesPodOperator(BaseOperator):
     :param log_pod_spec_on_failure: Log the pod's specification if a failure occurs
     :param on_finish_action: What to do when the pod reaches its final state, or the execution is interrupted.
         If "delete_pod", the pod will be deleted regardless its state; if "delete_succeeded_pod",
-        only succeeded pod will be deleted. You can set to "keep_pod" to keep the pod. "delete_active_pod" deletes
-        pods that are still active (Pending or Running).
+        only succeeded pod will be deleted. You can set to "keep_pod" to keep the pod.
     :param termination_message_policy: The termination message policy of the base container.
         Default value is "File"
     :param active_deadline_seconds: The active_deadline_seconds which translates to active_deadline_seconds
@@ -562,7 +563,6 @@ class KubernetesPodOperator(BaseOperator):
             callback.on_sync_client_creation(client=client, operator=self)
         return client
 
-    @generic_api_retry
     def find_pod(self, namespace: str, context: Context, *, exclude_checked: bool = True) -> k8s.V1Pod | None:
         """Return an already-running pod for this task instance if one exists."""
         label_selector = self._build_find_pod_label_selector(context, exclude_checked=exclude_checked)
@@ -579,7 +579,7 @@ class KubernetesPodOperator(BaseOperator):
             self.log_matching_pod(pod=pod, context=context)
         elif num_pods > 1:
             if self.reattach_on_restart:
-                raise FoundMoreThanOnePodFailure(f"More than one pod running with labels {label_selector}")
+                raise AirflowException(f"More than one pod running with labels {label_selector}")
             self.log.warning("Found more than one pod running with labels %s, resolving ...", label_selector)
             pod = self.process_duplicate_label_pods(pod_list)
             self.log_matching_pod(pod=pod, context=context)
@@ -628,26 +628,14 @@ class KubernetesPodOperator(BaseOperator):
         try:
 
             async def _await_pod_start():
-                # Start event stream in background
-                events_task = asyncio.create_task(
-                    self.pod_manager.watch_pod_events(pod, self.startup_check_interval_seconds)
+                events_task = self.pod_manager.watch_pod_events(pod, self.startup_check_interval_seconds)
+                pod_start_task = self.pod_manager.await_pod_start(
+                    pod=pod,
+                    schedule_timeout=self.schedule_timeout_seconds,
+                    startup_timeout=self.startup_timeout_seconds,
+                    check_interval=self.startup_check_interval_seconds,
                 )
-
-                # Await pod start completion
-                try:
-                    await self.pod_manager.await_pod_start(
-                        pod=pod,
-                        schedule_timeout=self.schedule_timeout_seconds,
-                        startup_timeout=self.startup_timeout_seconds,
-                        check_interval=self.startup_check_interval_seconds,
-                    )
-                finally:
-                    # Stop watching events
-                    events_task.cancel()
-                    try:
-                        await events_task
-                    except asyncio.CancelledError:
-                        pass
+                await asyncio.gather(pod_start_task, events_task)
 
             asyncio.run(_await_pod_start())
         except PodLaunchFailedException:
@@ -866,21 +854,6 @@ class KubernetesPodOperator(BaseOperator):
     def invoke_defer_method(self, last_log_time: DateTime | None = None) -> None:
         """Redefine triggers which are being used in child classes."""
         self.convert_config_file_to_dict()
-
-        connection_extras = None
-        if self.kubernetes_conn_id:
-            try:
-                conn = BaseHook.get_connection(self.kubernetes_conn_id)
-            except AirflowNotFoundException:
-                self.log.warning(
-                    "Could not resolve connection extras for deferral: connection `%s` not found. "
-                    "Triggerer will try to resolve it from its own environment.",
-                    self.kubernetes_conn_id,
-                )
-            else:
-                connection_extras = conn.extra_dejson
-                self.log.info("Successfully resolved connection extras for deferral.")
-
         trigger_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
         self.defer(
             trigger=KubernetesPodTrigger(
@@ -888,7 +861,6 @@ class KubernetesPodOperator(BaseOperator):
                 pod_namespace=self.pod.metadata.namespace,  # type: ignore[union-attr]
                 trigger_start_time=trigger_start_time,
                 kubernetes_conn_id=self.kubernetes_conn_id,
-                connection_extras=connection_extras,
                 cluster_context=self.cluster_context,
                 config_dict=self._config_dict,
                 in_cluster=self.in_cluster,
@@ -963,9 +935,6 @@ class KubernetesPodOperator(BaseOperator):
             raise
         finally:
             self._clean(event=event, context=context, result=xcom_sidecar_output)
-
-            if self.do_xcom_push and xcom_sidecar_output:
-                context["ti"].xcom_push(XCOM_RETURN_KEY, xcom_sidecar_output)
 
     def _clean(self, event: dict[str, Any], result: dict | None, context: Context) -> None:
         if self.pod is None:
@@ -1055,11 +1024,7 @@ class KubernetesPodOperator(BaseOperator):
         pod_phase = remote_pod.status.phase if hasattr(remote_pod, "status") else None
 
         # if the pod fails or success, but we don't want to delete it
-        if (
-            pod_phase != PodPhase.SUCCEEDED
-            or self.on_finish_action == OnFinishAction.KEEP_POD
-            or self.on_finish_action == OnFinishAction.DELETE_ACTIVE_POD
-        ):
+        if pod_phase != PodPhase.SUCCEEDED or self.on_finish_action == OnFinishAction.KEEP_POD:
             self.patch_already_checked(remote_pod, reraise=False)
 
         failed = (pod_phase != PodPhase.SUCCEEDED and not istio_enabled) or (
@@ -1195,21 +1160,13 @@ class KubernetesPodOperator(BaseOperator):
     def process_pod_deletion(self, pod: k8s.V1Pod, *, reraise=True) -> bool:
         with _optionally_suppress(reraise=reraise):
             if pod is not None:
-                should_delete_pod = (
-                    (self.on_finish_action == OnFinishAction.DELETE_POD)
-                    or (
-                        self.on_finish_action == OnFinishAction.DELETE_SUCCEEDED_POD
-                        and (
-                            pod.status.phase == PodPhase.SUCCEEDED
-                            or container_is_succeeded(pod, self.base_container_name)
-                        )
-                    )
-                    or (
-                        self.on_finish_action == OnFinishAction.DELETE_ACTIVE_POD
-                        and (pod.status.phase == PodPhase.RUNNING or pod.status.phase == PodPhase.PENDING)
+                should_delete_pod = (self.on_finish_action == OnFinishAction.DELETE_POD) or (
+                    self.on_finish_action == OnFinishAction.DELETE_SUCCEEDED_POD
+                    and (
+                        pod.status.phase == PodPhase.SUCCEEDED
+                        or container_is_succeeded(pod, self.base_container_name)
                     )
                 )
-
                 if should_delete_pod:
                     self.log.info("Deleting pod: %s", pod.metadata.name)
                     self.pod_manager.delete_pod(pod)
@@ -1241,16 +1198,11 @@ class KubernetesPodOperator(BaseOperator):
     def patch_already_checked(self, pod: k8s.V1Pod, *, reraise=True):
         """Add an "already checked" label to ensure we don't reattach on retries."""
         with _optionally_suppress(reraise=reraise):
-
-            @generic_api_retry
-            def _patch_with_retry():
-                self.client.patch_namespaced_pod(
-                    name=pod.metadata.name,
-                    namespace=pod.metadata.namespace,
-                    body={"metadata": {"labels": {self.POD_CHECKED_KEY: "True"}}},
-                )
-
-            _patch_with_retry()
+            self.client.patch_namespaced_pod(
+                name=pod.metadata.name,
+                namespace=pod.metadata.namespace,
+                body={"metadata": {"labels": {self.POD_CHECKED_KEY: "True"}}},
+            )
 
     def on_kill(self) -> None:
         self._killed = True
@@ -1263,12 +1215,8 @@ class KubernetesPodOperator(BaseOperator):
             if self.termination_grace_period is not None:
                 kwargs.update(grace_period_seconds=self.termination_grace_period)
 
-            @generic_api_retry
-            def _delete_with_retry():
-                self.client.delete_namespaced_pod(**kwargs)
-
             try:
-                _delete_with_retry()
+                self.client.delete_namespaced_pod(**kwargs)
             except kubernetes.client.exceptions.ApiException:
                 self.log.exception("Unable to delete pod %s", self.pod.metadata.name)
 
@@ -1422,21 +1370,12 @@ class KubernetesPodOperator(BaseOperator):
             self.process_pod_deletion(old_pod)
         return new_pod
 
-    def _get_most_recent_pod_index(self, pod_list: list[k8s.V1Pod]) -> int:
+    @staticmethod
+    def _get_most_recent_pod_index(pod_list: list[k8s.V1Pod]) -> int:
         """Loop through a list of V1Pod objects and get the index of the most recent one."""
         pod_start_times: list[datetime.datetime] = [
             pod.to_dict().get("status").get("start_time") for pod in pod_list
         ]
-        if not all(pod_start_times):
-            self.log.info(
-                "Unable to determine most recent pod using start_time (some pods have not started yet). Falling back to creation_timestamp from pod metadata."
-            )
-            pod_start_times: list[datetime.datetime] = [  # type: ignore[no-redef]
-                pod.to_dict()
-                .get("metadata", {})
-                .get("creation_timestamp", datetime.datetime.now(tz=datetime.timezone.utc))
-                for pod in pod_list
-            ]
         most_recent_start_time = max(pod_start_times)
         return pod_start_times.index(most_recent_start_time)
 

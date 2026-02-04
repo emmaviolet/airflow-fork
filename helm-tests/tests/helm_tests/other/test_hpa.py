@@ -33,24 +33,26 @@ class TestHPA:
         assert docs == []
 
     @pytest.mark.parametrize(
-        "executor",
+        ("executor", "is_created"),
         [
-            "CeleryExecutor",
-            "CeleryKubernetesExecutor",
-            "CeleryExecutor,KubernetesExecutor",
+            ("CeleryExecutor", True),
+            ("CeleryKubernetesExecutor", True),
+            ("CeleryExecutor,KubernetesExecutor", True),
         ],
     )
-    def test_hpa_enabled(self, executor):
+    def test_hpa_enabled(self, executor, is_created):
         """HPA should only be created when enabled and executor is Celery or CeleryKubernetes."""
         docs = render_chart(
             values={
-                "workers": {"hpa": {"enabled": True}, "celery": {"persistence": {"enabled": False}}},
+                "workers": {"hpa": {"enabled": True}, "persistence": {"enabled": False}},
                 "executor": executor,
             },
             show_only=["templates/workers/worker-hpa.yaml"],
         )
-
-        assert jmespath.search("metadata.name", docs[0]) == "release-name-worker"
+        if is_created:
+            assert jmespath.search("metadata.name", docs[0]) == "release-name-worker"
+        else:
+            assert docs == []
 
     @pytest.mark.parametrize(
         ("min_replicas", "max_replicas"),
@@ -102,21 +104,18 @@ class TestHPA:
         assert jmespath.search("spec.behavior", docs[0]) == expected_behavior
 
     @pytest.mark.parametrize(
-        ("workers_persistence_values", "kind"),
+        ("enabled", "kind"),
         [
-            ({"celery": {"persistence": {"enabled": True}}}, "StatefulSet"),
-            ({"celery": {"persistence": {"enabled": False}}}, "Deployment"),
-            ({"persistence": {"enabled": True}, "celery": {"persistence": {"enabled": None}}}, "StatefulSet"),
-            ({"persistence": {"enabled": False}, "celery": {"persistence": {"enabled": None}}}, "Deployment"),
-            ({"persistence": {"enabled": True}}, "StatefulSet"),
-            ({"persistence": {"enabled": False}}, "StatefulSet"),
+            ("enabled", "StatefulSet"),
+            ("not_enabled", "Deployment"),
         ],
     )
-    def test_persistence(self, workers_persistence_values, kind):
+    def test_persistence(self, enabled, kind):
         """If worker persistence is enabled, scaleTargetRef should be StatefulSet else Deployment."""
+        is_enabled = enabled == "enabled"
         docs = render_chart(
             values={
-                "workers": {"hpa": {"enabled": True}, **workers_persistence_values},
+                "workers": {"hpa": {"enabled": True}, "persistence": {"enabled": is_enabled}},
                 "executor": "CeleryExecutor",
             },
             show_only=["templates/workers/worker-hpa.yaml"],

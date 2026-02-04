@@ -31,7 +31,8 @@ from arango.exceptions import (
     DocumentUpdateError,
 )
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseHook
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook
 
 if TYPE_CHECKING:
     from arango.database import StandardDatabase

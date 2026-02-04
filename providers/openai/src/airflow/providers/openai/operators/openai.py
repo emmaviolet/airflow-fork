@@ -22,7 +22,8 @@ from collections.abc import Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal
 
-from airflow.providers.common.compat.sdk import BaseOperator, conf
+from airflow.configuration import conf
+from airflow.providers.common.compat.sdk import BaseOperator
 from airflow.providers.openai.exceptions import OpenAIBatchJobException
 from airflow.providers.openai.hooks.openai import OpenAIHook
 from airflow.providers.openai.triggers.openai import OpenAIBatchTrigger

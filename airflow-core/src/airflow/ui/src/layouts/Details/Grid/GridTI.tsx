@@ -17,15 +17,38 @@
  * under the License.
  */
 import { Badge, Flex } from "@chakra-ui/react";
+import type { MouseEvent } from "react";
+import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 
 import type { LightGridTaskInstanceSummary } from "openapi/requests/types.gen";
-import { BasicTooltip } from "src/components/BasicTooltip";
 import { StateIcon } from "src/components/StateIcon";
 import Time from "src/components/Time";
-import { useHover } from "src/context/hover";
+import { Tooltip } from "src/components/ui";
+import { type HoverContextType, useHover } from "src/context/hover";
 import { buildTaskInstanceUrl } from "src/utils/links";
+
+const handleMouseEnter =
+  (setHoveredTaskId: HoverContextType["setHoveredTaskId"]) => (event: MouseEvent<HTMLDivElement>) => {
+    const tasks = document.querySelectorAll<HTMLDivElement>(`#${event.currentTarget.id}`);
+
+    tasks.forEach((task) => {
+      task.style.backgroundColor = "var(--chakra-colors-info-subtle)";
+    });
+
+    setHoveredTaskId(event.currentTarget.id.replaceAll("-", "."));
+  };
+
+const handleMouseLeave = (taskId: string, setHoveredTaskId: HoverContextType["setHoveredTaskId"]) => () => {
+  const tasks = document.querySelectorAll<HTMLDivElement>(`#task-${taskId.replaceAll(".", "-")}`);
+
+  tasks.forEach((task) => {
+    task.style.backgroundColor = "";
+  });
+
+  setHoveredTaskId(undefined);
+};
 
 type Props = {
   readonly dagId: string;
@@ -38,25 +61,29 @@ type Props = {
   readonly taskId: string;
 };
 
-export const GridTI = ({ dagId, instance, isGroup, isMapped, onClick, runId, taskId }: Props) => {
-  const { hoveredTaskId, setHoveredTaskId } = useHover();
+const Instance = ({ dagId, instance, isGroup, isMapped, onClick, runId, taskId }: Props) => {
+  const { setHoveredTaskId } = useHover();
   const { groupId: selectedGroupId, taskId: selectedTaskId } = useParams();
   const { t: translate } = useTranslation();
   const location = useLocation();
 
   const [searchParams] = useSearchParams();
 
-  const taskUrl = buildTaskInstanceUrl({
-    currentPathname: location.pathname,
-    dagId,
-    isGroup,
-    isMapped: Boolean(isMapped),
-    runId,
-    taskId,
-  });
+  const onMouseEnter = handleMouseEnter(setHoveredTaskId);
+  const onMouseLeave = handleMouseLeave(taskId, setHoveredTaskId);
 
-  const handleMouseEnter = () => setHoveredTaskId(taskId);
-  const handleMouseLeave = () => setHoveredTaskId(undefined);
+  const getTaskUrl = useCallback(
+    () =>
+      buildTaskInstanceUrl({
+        currentPathname: location.pathname,
+        dagId,
+        isGroup,
+        isMapped: Boolean(isMapped),
+        runId,
+        taskId,
+      }),
+    [dagId, isGroup, isMapped, location.pathname, runId, taskId],
+  );
 
   // Remove try_number query param when navigating to reset to the
   // latest try of the task instance and avoid issues with invalid try numbers:
@@ -64,57 +91,50 @@ export const GridTI = ({ dagId, instance, isGroup, isMapped, onClick, runId, tas
   searchParams.delete("try_number");
   const redirectionSearch = searchParams.toString();
 
-  // Determine background: selected takes priority over hovered
-  const isSelected = selectedTaskId === taskId || selectedGroupId === taskId;
-  const isHovered = hoveredTaskId === taskId;
-
   return (
     <Flex
       alignItems="center"
-      bg={isSelected ? "brand.emphasized" : isHovered ? "brand.muted" : undefined}
+      bg={selectedTaskId === taskId || selectedGroupId === taskId ? "info.muted" : undefined}
       height="20px"
       id={`task-${taskId.replaceAll(".", "-")}`}
       justifyContent="center"
       key={taskId}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       position="relative"
       px="2px"
       py={0}
       transition="background-color 0.2s"
     >
-      <BasicTooltip
-        content={
-          <>
-            {translate("taskId")}: {taskId}
-            <br />
-            {translate("state")}:{" "}
-            {instance.state
-              ? translate(`common:states.${instance.state}`)
-              : translate("common:states.no_status")}
-            {instance.min_start_date !== null && (
-              <>
-                <br />
-                {translate("startDate")}: <Time datetime={instance.min_start_date} />
-              </>
-            )}
-            {instance.max_end_date !== null && (
-              <>
-                <br />
-                {translate("endDate")}: <Time datetime={instance.max_end_date} />
-              </>
-            )}
-          </>
-        }
+      <Link
+        id={`grid-${runId}-${taskId}`}
+        onClick={onClick}
+        replace
+        to={{
+          pathname: getTaskUrl(),
+          search: redirectionSearch,
+        }}
       >
-        <Link
-          id={`grid-${runId}-${taskId}`}
-          onClick={onClick}
-          replace
-          to={{
-            pathname: taskUrl,
-            search: redirectionSearch,
-          }}
+        <Tooltip
+          content={
+            <>
+              {translate("taskId")}: {taskId}
+              <br />
+              {translate("state")}: {instance.state}
+              {instance.min_start_date !== null && (
+                <>
+                  <br />
+                  {translate("startDate")}: <Time datetime={instance.min_start_date} />
+                </>
+              )}
+              {instance.max_end_date !== null && (
+                <>
+                  <br />
+                  {translate("endDate")}: <Time datetime={instance.max_end_date} />
+                </>
+              )}
+            </>
+          }
         >
           <Badge
             alignItems="center"
@@ -130,8 +150,10 @@ export const GridTI = ({ dagId, instance, isGroup, isMapped, onClick, runId, tas
           >
             <StateIcon size={10} state={instance.state} />
           </Badge>
-        </Link>
-      </BasicTooltip>
+        </Tooltip>
+      </Link>
     </Flex>
   );
 };
+
+export const GridTI = React.memo(Instance);

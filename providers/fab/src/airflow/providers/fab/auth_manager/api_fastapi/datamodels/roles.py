@@ -21,30 +21,30 @@ from pydantic import Field
 from airflow.api_fastapi.core_api.base import BaseModel, StrictBaseModel
 
 
-class Action(BaseModel):
+class ActionResponse(BaseModel):
     """Outgoing representation of an action (permission name)."""
 
     name: str
 
 
-class Resource(BaseModel):
+class ResourceResponse(BaseModel):
     """Outgoing representation of a resource."""
 
     name: str
 
 
-class ActionResource(BaseModel):
+class ActionResourceResponse(BaseModel):
     """Pairing of an action with a resource."""
 
-    action: Action
-    resource: Resource
+    action: ActionResponse
+    resource: ResourceResponse
 
 
 class RoleBody(StrictBaseModel):
     """Incoming payload for creating/updating a role."""
 
     name: str = Field(min_length=1)
-    permissions: list[ActionResource] = Field(
+    permissions: list[ActionResourceResponse] = Field(
         default_factory=list, alias="actions", validation_alias="actions"
     )
 
@@ -53,7 +53,7 @@ class RoleResponse(BaseModel):
     """Outgoing representation of a role and its permissions."""
 
     name: str
-    permissions: list[ActionResource] = Field(default_factory=list, serialization_alias="actions")
+    permissions: list[ActionResourceResponse] = Field(default_factory=list, serialization_alias="actions")
 
 
 class RoleCollectionResponse(BaseModel):

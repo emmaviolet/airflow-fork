@@ -27,8 +27,7 @@ where things in this module are re-exported.
 from __future__ import annotations
 
 import functools
-import importlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import sentry_sdk
 import sentry_sdk.integrations.logging
@@ -63,23 +62,25 @@ class ConfiguredSentry(NoopSentry):
         )
     )
 
-    def prepare_to_enrich_errors(self, executor_integration: str) -> None:
+    def __init__(self):
         """Initialize the Sentry SDK."""
-        from airflow.sdk.configuration import conf
+        from airflow.configuration import conf
 
         sentry_sdk.integrations.logging.ignore_logger("airflow.task")
 
         # LoggingIntegration is set by default.
         integrations = []
 
-        if executor_integration:
-            try:
-                mod_p, cls_n = executor_integration.rsplit(".", 1)
-                integrations.append(getattr(importlib.import_module(mod_p), cls_n)())
-            except Exception:
-                log.exception("Invalid executor Sentry integration", import_path=executor_integration)
+        # TODO: How can we get executor info in the runner to support this?
+        # executor_class, _ = ExecutorLoader.import_default_executor_cls()
+        # if executor_class.supports_sentry:
+        #     from sentry_sdk.integrations.celery import CeleryIntegration
 
-        sentry_config_opts: dict[str, Any] = conf.getsection("sentry") or {}
+        #     sentry_celery = CeleryIntegration()
+        #     integrations.append(sentry_celery)
+
+        dsn = None
+        sentry_config_opts = conf.getsection("sentry") or {}
         if sentry_config_opts:
             sentry_config_opts.pop("sentry_on")
             old_way_dsn = sentry_config_opts.pop("sentry_dsn", None)
@@ -92,12 +93,9 @@ class ConfiguredSentry(NoopSentry):
                     "There are unsupported options in [sentry] section",
                     options=unsupported_options,
                 )
-        else:
-            dsn = None
-            if before_send := conf.getimport("sentry", "before_send", fallback=None):
-                sentry_config_opts["before_send"] = before_send
-            if transport := conf.getimport("sentry", "transport", fallback=None):
-                sentry_config_opts["transport"] = transport
+
+            sentry_config_opts["before_send"] = conf.getimport("sentry", "before_send", fallback=None)
+            sentry_config_opts["transport"] = conf.getimport("sentry", "transport", fallback=None)
 
         if dsn:
             sentry_sdk.init(dsn=dsn, integrations=integrations, **sentry_config_opts)
@@ -139,7 +137,6 @@ class ConfiguredSentry(NoopSentry):
 
         @functools.wraps(run)
         def wrapped_run(ti: RuntimeTaskInstance, context: Context, log: Logger) -> RunReturn:
-            self.prepare_to_enrich_errors(ti.sentry_integration)
             with sentry_sdk.push_scope():
                 try:
                     self.add_tagging(context["dag_run"], ti)

@@ -28,7 +28,6 @@
     "requiredActions": "פעולות נדרשות",
     "xcoms": "XComs"
   },
-  "collapseAllExtra": "כווץ תוכן JSON",
   "collapseDetailsPanel": "כווץ לוח פרטים",
   "createdAssetEvent_one": "אירוע נכס שנוצר",
   "createdAssetEvent_other": "אירועי נכס שנוצרו",
@@ -65,7 +64,6 @@
     "dataIntervalEnd": "סיום מקטע נתונים",
     "dataIntervalStart": "תחילת מקטע נתונים",
     "lastSchedulingDecision": "החלטת תזמון אחרונה",
-    "partitionKey": "מפתח חלוקה",
     "queuedAt": "זמן כניסה לתור",
     "runAfter": "ריצה לאחר",
     "runType": "סוג ריצה",
@@ -97,7 +95,6 @@
     "back": "חזור",
     "defaultMessage": "התרחשה שגיאה בלתי צפויה",
     "home": "דף הבית",
-    "invalidUrl": "הדף לא נמצא. בדוק את הכתובת ונסה שוב.",
     "notFound": "הדף לא נמצא",
     "title": "שגיאה"
   },
@@ -107,7 +104,6 @@
     "hotkey": "e",
     "tooltip": "לחץ {{hotkey}} לכיווץ או הרחבה"
   },
-  "expandAllExtra": "הרחב תוכן JSON",
   "expression": {
     "all": "הכל",
     "and": "וגם",
@@ -118,13 +114,10 @@
   "filters": {
     "durationFrom": "משך זמן מ-",
     "durationTo": "משך זמן עד",
-    "endTime": "זמן סיום",
     "logicalDateFrom": "תאריך לוגי מ-",
     "logicalDateTo": "תאריך לוגי עד",
     "runAfterFrom": "ריצה לאחר (מתאריך)",
-    "runAfterTo": "ריצה לאחר (עד תאריך)",
-    "selectDateRange": "בחר טווח תאריכים",
-    "startTime": "זמן התחלה"
+    "runAfterTo": "ריצה לאחר (עד תאריך)"
   },
   "logicalDate": "תאריך לוגי",
   "logout": "התנתק",
@@ -191,7 +184,6 @@
   },
   "selectLanguage": "בחר שפה",
   "showDetailsPanel": "הצג לוח פרטים",
-  "signedInAs": "מחובר כ",
   "source": {
     "hide": "הסתר מקור",
     "hotkey": "s",

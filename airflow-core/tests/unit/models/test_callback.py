@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import select
 
 from airflow.models import Trigger
 from airflow.models.callback import (
@@ -27,7 +26,7 @@ from airflow.models.callback import (
     ExecutorCallback,
     TriggererCallback,
 )
-from airflow.sdk.definitions.callback import AsyncCallback, SyncCallback
+from airflow.sdk.definitions.deadline import AsyncCallback, SyncCallback
 from airflow.triggers.base import TriggerEvent
 from airflow.triggers.callback import PAYLOAD_BODY_KEY, PAYLOAD_STATUS_KEY
 from airflow.utils.session import create_session
@@ -119,7 +118,7 @@ class TestTriggererCallback:
         session.add(callback)
         session.commit()
 
-        retrieved = session.scalar(select(Callback).where(Callback.id == callback.id))
+        retrieved = session.query(Callback).filter_by(id=callback.id).one()
         assert isinstance(retrieved, TriggererCallback)
         assert retrieved.fetch_method == CallbackFetchMethod.IMPORT_PATH
         assert retrieved.data == TEST_ASYNC_CALLBACK.serialize()
@@ -189,7 +188,7 @@ class TestExecutorCallback:
         session.add(callback)
         session.commit()
 
-        retrieved = session.scalar(select(Callback).where(Callback.id == callback.id))
+        retrieved = session.query(Callback).filter_by(id=callback.id).one()
         assert isinstance(retrieved, ExecutorCallback)
         assert retrieved.fetch_method == CallbackFetchMethod.IMPORT_PATH
         assert retrieved.data == TEST_SYNC_CALLBACK.serialize()

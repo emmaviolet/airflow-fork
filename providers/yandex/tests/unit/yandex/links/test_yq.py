@@ -20,32 +20,49 @@ from unittest import mock
 
 import pytest
 
+from airflow.models.taskinstance import TaskInstance
 from airflow.providers.common.compat.sdk import XCom
 from airflow.providers.yandex.links.yq import YQLink
 
 from tests_common.test_utils.mock_operators import MockOperator
-from tests_common.test_utils.taskinstance import create_task_instance
+from tests_common.test_utils.version_compat import AIRFLOW_V_3_0_PLUS
 
 yandexcloud = pytest.importorskip("yandexcloud")
 
 
 def test_persist():
     mock_ti = mock.MagicMock()
-    YQLink.persist(context={"ti": mock_ti, "task_instance": mock_ti}, web_link="g.com")
-    mock_ti.xcom_push.assert_called_once_with(key="web_link", value="g.com")
+    mock_context = {"ti": mock_ti}
+    if not AIRFLOW_V_3_0_PLUS:
+        mock_context["task_instance"] = mock_ti
+
+    YQLink.persist(context=mock_context, web_link="g.com")
+
+    ti = mock_context["ti"]
+    ti.xcom_push.assert_called_once_with(key="web_link", value="g.com")
 
 
 def test_default_link():
-    link = YQLink()
-    op = MockOperator(task_id="test_task_id")
-    ti = create_task_instance(task=op, run_id="run_id1", dag_version_id=mock.MagicMock())
-    with mock.patch.object(XCom, "get_value", return_value=None):
+    with mock.patch.object(XCom, "get_value") as m:
+        m.return_value = None
+        link = YQLink()
+
+        op = MockOperator(task_id="test_task_id")
+        if AIRFLOW_V_3_0_PLUS:
+            ti = TaskInstance(task=op, run_id="run_id1", dag_version_id=mock.MagicMock())
+        else:
+            ti = TaskInstance(task=op, run_id="run_id1")
         assert link.get_link(op, ti_key=ti.key) == "https://yq.cloud.yandex.ru"
 
 
 def test_link():
-    link = YQLink()
-    op = MockOperator(task_id="test_task_id")
-    ti = create_task_instance(task=op, run_id="run_id1", dag_version_id=mock.MagicMock())
-    with mock.patch.object(XCom, "get_value", return_value="https://g.com"):
+    with mock.patch.object(XCom, "get_value") as m:
+        m.return_value = "https://g.com"
+        link = YQLink()
+
+        op = MockOperator(task_id="test_task_id")
+        if AIRFLOW_V_3_0_PLUS:
+            ti = TaskInstance(task=op, run_id="run_id1", dag_version_id=mock.MagicMock())
+        else:
+            ti = TaskInstance(task=op, run_id="run_id1")
         assert link.get_link(op, ti_key=ti.key) == "https://g.com"

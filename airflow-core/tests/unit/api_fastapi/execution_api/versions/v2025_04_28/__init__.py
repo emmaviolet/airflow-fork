@@ -14,3 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+<<<<<<<< HEAD:scripts/ci/docker-compose/enable-tty.yml
+---
+services:
+  airflow:
+    tty: true  # docker run -t
+========
+>>>>>>>> origin/main:airflow-core/tests/unit/api_fastapi/execution_api/versions/v2025_04_28/__init__.py

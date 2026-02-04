@@ -24,7 +24,8 @@ from typing import TYPE_CHECKING, Any
 from jinja2.nativetypes import NativeEnvironment
 from pypsrp.serializer import TaggedValue
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseOperator
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseOperator
 from airflow.providers.microsoft.psrp.hooks.psrp import PsrpHook
 from airflow.settings import json
 from airflow.utils.helpers import exactly_one
@@ -32,7 +33,7 @@ from airflow.utils.helpers import exactly_one
 if TYPE_CHECKING:
     from pypsrp.powershell import Command
 
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class PsrpOperator(BaseOperator):

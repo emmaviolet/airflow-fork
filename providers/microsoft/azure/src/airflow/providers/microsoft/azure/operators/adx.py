@@ -23,13 +23,14 @@ from collections.abc import Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from airflow.providers.common.compat.sdk import BaseOperator, conf
+from airflow.configuration import conf
+from airflow.providers.common.compat.sdk import BaseOperator
 from airflow.providers.microsoft.azure.hooks.adx import AzureDataExplorerHook
 
 if TYPE_CHECKING:
     from azure.kusto.data._models import KustoResultTable
 
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class AzureDataExplorerQueryOperator(BaseOperator):

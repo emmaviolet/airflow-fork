@@ -26,7 +26,8 @@ from docker import APIClient, TLSConfig
 from docker.constants import DEFAULT_TIMEOUT_SECONDS
 from docker.errors import APIError, DockerException
 
-from airflow.providers.common.compat.sdk import AirflowException, AirflowNotFoundException, BaseHook
+from airflow.exceptions import AirflowException, AirflowNotFoundException
+from airflow.providers.common.compat.sdk import BaseHook
 
 if TYPE_CHECKING:
     from airflow.providers.common.compat.sdk import Connection

@@ -23,11 +23,12 @@ from typing import TYPE_CHECKING
 
 from kubernetes import client
 
+from airflow.exceptions import AirflowException
 from airflow.providers.cncf.kubernetes.hooks.kubernetes import KubernetesHook
-from airflow.providers.common.compat.sdk import AirflowException, BaseSensorOperator
+from airflow.providers.common.compat.sdk import BaseSensorOperator
 
 if TYPE_CHECKING:
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class SparkKubernetesSensor(BaseSensorOperator):

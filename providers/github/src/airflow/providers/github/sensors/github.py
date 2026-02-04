@@ -22,7 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 from github import GithubException
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseSensorOperator
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseSensorOperator
 from airflow.providers.github.hooks.github import GithubHook
 
 if TYPE_CHECKING:

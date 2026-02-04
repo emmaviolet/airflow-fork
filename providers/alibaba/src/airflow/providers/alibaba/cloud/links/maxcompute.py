@@ -23,7 +23,7 @@ from airflow.providers.common.compat.sdk import BaseOperatorLink, XCom
 if TYPE_CHECKING:
     from airflow.models.taskinstancekey import TaskInstanceKey
     from airflow.providers.common.compat.sdk import BaseOperator
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class MaxComputeLogViewLink(BaseOperatorLink):

@@ -19,7 +19,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseHook, BaseOperator
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook, BaseOperator
 
 if TYPE_CHECKING:
     import pandas as pd

@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -25,14 +26,15 @@ import sys
 from fnmatch import fnmatch
 from importlib import import_module
 from re import Pattern
-from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import attr
 
-from airflow.sdk._shared.module_loading import import_string, iter_namespace, qualname
-from airflow.sdk.configuration import conf
-from airflow.sdk.observability.stats import Stats
-from airflow.sdk.serde.typing import is_pydantic_model
+import airflow.serialization.serializers
+from airflow.configuration import conf
+from airflow.serialization.typing import is_pydantic_model
+from airflow.stats import Stats
+from airflow.utils.module_loading import import_string, iter_namespace, qualname
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -85,14 +87,6 @@ def decode(d: dict[str, Any]) -> tuple[str, int, Any]:
     return classname, version, data
 
 
-@overload
-def serialize(o: dict, depth: int = 0) -> dict: ...
-@overload
-def serialize(o: None, depth: int = 0) -> None: ...
-@overload
-def serialize(o: object, depth: int = 0) -> U | None: ...
-
-
 def serialize(o: object, depth: int = 0) -> U | None:
     """
     Serialize an object into a representation consisting only built-in types.
@@ -105,7 +99,7 @@ def serialize(o: object, depth: int = 0) -> U | None:
     found for them. The order in which serializers are used is
 
     1. A ``serialize`` function provided by the object.
-    2. A registered serializer in the namespace of ``airflow.sdk.serde.serializers``
+    2. A registered serializer in the namespace of ``airflow.serialization.serializers``
     3. Annotations from attr or dataclass.
 
     Limitations: attr and dataclass objects can lose type information for nested objects
@@ -371,8 +365,7 @@ def _register():
     _stringifiers.clear()
 
     with Stats.timer("serde.load_serializers") as timer:
-        serializers_module = import_module("airflow.sdk.serde.serializers")
-        for _, module_name, _ in iter_namespace(serializers_module):
+        for _, module_name, _ in iter_namespace(airflow.serialization.serializers):
             module = import_module(module_name)
             for serializers in getattr(module, "serializers", ()):
                 s_qualname = serializers if isinstance(serializers, str) else qualname(serializers)

@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import pytest
 from cryptography.fernet import Fernet
-from sqlalchemy import select
 
 from airflow.cli import cli_parser
 from airflow.cli.commands import rotate_fernet_key_command
@@ -72,7 +71,7 @@ class TestRotateFernetKeyCommand:
         # Assert correctness using a new fernet key
         with conf_vars({("core", "fernet_key"): fernet_key2.decode()}):
             get_fernet.cache_clear()  # Clear cached fernet
-            var1 = session.scalar(select(Variable).where(Variable.key == var1_key))
+            var1 = session.query(Variable).filter(Variable.key == var1_key).first()
             # Unencrypted variable should be unchanged
             assert Variable.get(key=var1_key) == "value"
             assert var1._val == "value"
@@ -104,7 +103,7 @@ class TestRotateFernetKeyCommand:
             rotate_fernet_key_command.rotate_fernet_key(args)
 
         def mock_get_connection(conn_id):
-            conn = session.scalar(select(Connection).where(Connection.conn_id == conn_id))
+            conn = session.query(Connection).filter(Connection.conn_id == conn_id).first()
             if conn:
                 from airflow.sdk.execution_time.comms import ConnectionResult
 

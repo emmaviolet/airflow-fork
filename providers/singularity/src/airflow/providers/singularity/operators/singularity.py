@@ -25,7 +25,8 @@ from typing import TYPE_CHECKING, Any
 
 from spython.main import Client
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseOperator
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseOperator
 
 if TYPE_CHECKING:
     from airflow.providers.common.compat.sdk import Context

@@ -18,12 +18,11 @@ from __future__ import annotations
 
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
-from functools import cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI
-from fastapi.routing import Mount
+from starlette.routing import Mount
 
 from airflow.api_fastapi.common.dagbag import create_dag_bag
 from airflow.api_fastapi.core_api.app import (
@@ -31,6 +30,7 @@ from airflow.api_fastapi.core_api.app import (
     init_error_handlers,
     init_flask_plugins,
     init_middlewares,
+    init_ui_plugins,
     init_views,
 )
 from airflow.api_fastapi.execution_api.app import create_task_execution_api_app
@@ -54,9 +54,8 @@ RESERVED_URL_PREFIXES = ["/api/v2", "/ui", "/execution"]
 
 log = logging.getLogger(__name__)
 
-
-class _AuthManagerState:
-    instance: BaseAuthManager | None = None
+app: FastAPI | None = None
+auth_manager: BaseAuthManager | None = None
 
 
 @asynccontextmanager
@@ -98,6 +97,7 @@ def create_app(apps: str = "all") -> FastAPI:
         init_plugins(app)
         init_auth_manager(app)
         init_flask_plugins(app)
+        init_ui_plugins(app)
         init_views(app)  # Core views need to be the last routes added - it has a catch all route
         init_error_handlers(app)
         init_middlewares(app)
@@ -107,16 +107,19 @@ def create_app(apps: str = "all") -> FastAPI:
     return app
 
 
-@cache
 def cached_app(config=None, testing=False, apps="all") -> FastAPI:
     """Return cached instance of Airflow API app."""
-    return create_app(apps=apps)
+    global app
+    if not app:
+        app = create_app(apps=apps)
+    return app
 
 
 def purge_cached_app() -> None:
     """Remove the cached version of the app and auth_manager in global state."""
-    cached_app.cache_clear()
-    _AuthManagerState.instance = None
+    global app, auth_manager
+    app = None
+    auth_manager = None
 
 
 def get_auth_manager_cls() -> type[BaseAuthManager]:
@@ -137,9 +140,10 @@ def get_auth_manager_cls() -> type[BaseAuthManager]:
 
 def create_auth_manager() -> BaseAuthManager:
     """Create the auth manager."""
+    global auth_manager
     auth_manager_cls = get_auth_manager_cls()
-    _AuthManagerState.instance = auth_manager_cls()
-    return _AuthManagerState.instance
+    auth_manager = auth_manager_cls()
+    return auth_manager
 
 
 def init_auth_manager(app: FastAPI | None = None) -> BaseAuthManager:
@@ -157,21 +161,22 @@ def init_auth_manager(app: FastAPI | None = None) -> BaseAuthManager:
 
 def get_auth_manager() -> BaseAuthManager:
     """Return the auth manager, provided it's been initialized before."""
-    if _AuthManagerState.instance is None:
+    if auth_manager is None:
         raise RuntimeError(
             "Auth Manager has not been initialized yet. "
             "The `init_auth_manager` method needs to be called first."
         )
-    return _AuthManagerState.instance
+    return auth_manager
 
 
 def init_plugins(app: FastAPI) -> None:
     """Integrate FastAPI app, middlewares and UI plugins."""
     from airflow import plugins_manager
 
-    apps, root_middlewares = plugins_manager.get_fastapi_plugins()
+    plugins_manager.initialize_fastapi_plugins()
 
-    for subapp_dict in apps:
+    # After calling initialize_fastapi_plugins, fastapi_apps cannot be None anymore.
+    for subapp_dict in cast("list", plugins_manager.fastapi_apps):
         name = subapp_dict.get("name")
         subapp = subapp_dict.get("app")
         if subapp is None:
@@ -191,7 +196,8 @@ def init_plugins(app: FastAPI) -> None:
         log.debug("Adding subapplication %s under prefix %s", name, url_prefix)
         app.mount(url_prefix, subapp)
 
-    for middleware_dict in root_middlewares:
+    # After calling initialize_fastapi_plugins, fastapi_root_middlewares cannot be None anymore.
+    for middleware_dict in cast("list", plugins_manager.fastapi_root_middlewares):
         name = middleware_dict.get("name")
         middleware = middleware_dict.get("middleware")
         args = middleware_dict.get("args", [])

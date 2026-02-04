@@ -17,9 +17,7 @@ paths:
         content:
           application/json:
             schema:
-              additionalProperties: true
-              type: object
-              title: Body
+              $ref: '#/components/schemas/LoginBody'
         required: true
       responses:
         '201':
@@ -57,9 +55,7 @@ paths:
         content:
           application/json:
             schema:
-              additionalProperties: true
-              type: object
-              title: Body
+              $ref: '#/components/schemas/LoginBody'
         required: true
       responses:
         '201':
@@ -328,79 +324,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-    patch:
-      tags:
-      - FabAuthManager
-      summary: Patch Role
-      description: Update an existing role.
-      operationId: patch_role
-      security:
-      - OAuth2PasswordBearer: []
-      - HTTPBearer: []
-      parameters:
-      - name: name
-        in: path
-        required: true
-        schema:
-          type: string
-          minLength: 1
-          title: Name
-      - name: update_mask
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Comma-separated list of fields to update
-          title: Update Mask
-        description: Comma-separated list of fields to update
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RoleBody'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleResponse'
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPExceptionResponse'
-          description: Bad Request
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPExceptionResponse'
-          description: Unauthorized
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPExceptionResponse'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPExceptionResponse'
-          description: Not Found
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
-    Action:
+    ActionResourceResponse:
+      properties:
+        action:
+          $ref: '#/components/schemas/ActionResponse'
+        resource:
+          $ref: '#/components/schemas/ResourceResponse'
+      type: object
+      required:
+      - action
+      - resource
+      title: ActionResourceResponse
+      description: Pairing of an action with a resource.
+    ActionResponse:
       properties:
         name:
           type: string
@@ -408,20 +346,8 @@ components:
       type: object
       required:
       - name
-      title: Action
+      title: ActionResponse
       description: Outgoing representation of an action (permission name).
-    ActionResource:
-      properties:
-        action:
-          $ref: '#/components/schemas/Action'
-        resource:
-          $ref: '#/components/schemas/Resource'
-      type: object
-      required:
-      - action
-      - resource
-      title: ActionResource
-      description: Pairing of an action with a resource.
     HTTPExceptionResponse:
       properties:
         detail:
@@ -444,6 +370,20 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    LoginBody:
+      properties:
+        username:
+          type: string
+          title: Username
+        password:
+          type: string
+          title: Password
+      type: object
+      required:
+      - username
+      - password
+      title: LoginBody
+      description: API Token serializer for requests.
     LoginResponse:
       properties:
         access_token:
@@ -454,7 +394,7 @@ components:
       - access_token
       title: LoginResponse
       description: API Token serializer for responses.
-    Resource:
+    ResourceResponse:
       properties:
         name:
           type: string
@@ -462,7 +402,7 @@ components:
       type: object
       required:
       - name
-      title: Resource
+      title: ResourceResponse
       description: Outgoing representation of a resource.
     RoleBody:
       properties:
@@ -472,7 +412,7 @@ components:
           title: Name
         actions:
           items:
-            $ref: '#/components/schemas/ActionResource'
+            $ref: '#/components/schemas/ActionResourceResponse'
           type: array
           title: Actions
       additionalProperties: false
@@ -504,7 +444,7 @@ components:
           title: Name
         actions:
           items:
-            $ref: '#/components/schemas/ActionResource'
+            $ref: '#/components/schemas/ActionResourceResponse'
           type: array
           title: Actions
       type: object

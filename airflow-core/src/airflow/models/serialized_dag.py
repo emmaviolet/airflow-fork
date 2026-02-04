@@ -34,7 +34,6 @@ from sqlalchemy.sql.expression import func, literal
 from sqlalchemy_utils import UUIDType
 
 from airflow._shared.timezones import timezone
-from airflow.configuration import conf
 from airflow.models.asset import (
     AssetAliasModel,
     AssetModel,
@@ -44,27 +43,19 @@ from airflow.models.dag import DagModel
 from airflow.models.dag_version import DagVersion
 from airflow.models.dagcode import DagCode
 from airflow.models.dagrun import DagRun
+from airflow.sdk.definitions.asset import AssetUniqueKey
 from airflow.serialization.dag_dependency import DagDependency
-from airflow.serialization.definitions.assets import SerializedAssetUniqueKey as UKey
-from airflow.serialization.serialized_objects import DagSerialization
-from airflow.settings import json
+from airflow.serialization.serialized_objects import LazyDeserializedDAG, SerializedDAG
+from airflow.settings import COMPRESS_SERIALIZED_DAGS, json
 from airflow.utils.hashlib_wrapper import md5
 from airflow.utils.session import NEW_SESSION, provide_session
 from airflow.utils.sqlalchemy import UtcDateTime, get_dialect_name, mapped_column
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
-    from sqlalchemy.orm.attributes import InstrumentedAttribute
-    from sqlalchemy.sql.elements import ColumnElement
-
-    from airflow.serialization.definitions.dag import SerializedDAG
-    from airflow.serialization.serialized_objects import LazyDeserializedDAG
 
 
 log = logging.getLogger(__name__)
-
-# If set to True, serialized DAGs is compressed before writing to DB,
-_COMPRESS_SERIALIZED_DAGS = conf.getboolean("core", "compress_serialized_dags", fallback=False)
 
 
 class _DagDependenciesResolver:
@@ -74,7 +65,7 @@ class _DagDependenciesResolver:
         self.dag_id_dependencies = dag_id_dependencies
         self.session = session
 
-        self.asset_key_to_id: dict[UKey, int] = {}
+        self.asset_key_to_id: dict[AssetUniqueKey, int] = {}
         self.asset_ref_name_to_asset_id_name: dict[str, tuple[int, str]] = {}
         self.asset_ref_uri_to_asset_id_name: dict[str, tuple[int, str]] = {}
         self.alias_names_to_asset_ids_names: dict[str, list[tuple[int, str]]] = {}
@@ -104,7 +95,7 @@ class _DagDependenciesResolver:
                     # Replace asset_key with asset id if it's in source or target
                     for node_key in ("source", "target"):
                         if dep_data[node_key].startswith("asset:"):
-                            unique_key = UKey.from_str(dep_data[node_key].split(":")[1])
+                            unique_key = AssetUniqueKey.from_str(dep_data[node_key].split(":")[1])
                             asset_id = self.asset_key_to_id[unique_key]
                             dep_data[node_key] = f"asset:{asset_id}"
                             break
@@ -134,7 +125,7 @@ class _DagDependenciesResolver:
                 dep_type = dep_data["dependency_type"]
                 dep_id = dep_data["dependency_id"]
                 if dep_type == "asset":
-                    unique_key = UKey.from_str(dep_id)
+                    unique_key = AssetUniqueKey.from_str(dep_id)
                     asset_names_uris.add((unique_key.name, unique_key.uri))
                 elif dep_type == "asset-name-ref":
                     asset_ref_names.add(dep_id)
@@ -144,9 +135,9 @@ class _DagDependenciesResolver:
                     asset_alias_names.add(dep_id)
         return asset_names_uris, asset_ref_names, asset_ref_uris, asset_alias_names
 
-    def collect_asset_key_to_ids(self, asset_name_uris: set[tuple[str, str]]) -> dict[UKey, int]:
+    def collect_asset_key_to_ids(self, asset_name_uris: set[tuple[str, str]]) -> dict[AssetUniqueKey, int]:
         return {
-            UKey(name=name, uri=uri): asset_id
+            AssetUniqueKey(name=name, uri=uri): asset_id
             for name, uri, asset_id in self.session.execute(
                 select(AssetModel.name, AssetModel.uri, AssetModel.id).where(
                     tuple_(AssetModel.name, AssetModel.uri).in_(asset_name_uris)
@@ -184,7 +175,7 @@ class _DagDependenciesResolver:
 
     def resolve_asset_dag_dep(self, dep_data: dict) -> DagDependency:
         dep_id = dep_data["dependency_id"]
-        unique_key = UKey.from_str(dep_id)
+        unique_key = AssetUniqueKey.from_str(dep_id)
         return DagDependency(
             source=dep_data["source"],
             target=dep_data["target"],
@@ -333,7 +324,7 @@ class SerializedDagModel(Base):
         # partially ordered json data
         dag_data_json = json.dumps(dag_data, sort_keys=True).encode("utf-8")
 
-        if _COMPRESS_SERIALIZED_DAGS:
+        if COMPRESS_SERIALIZED_DAGS:
             self._data = None
             self._data_compressed = zlib.compress(dag_data_json)
         else:
@@ -342,7 +333,7 @@ class SerializedDagModel(Base):
 
         # serve as cache so no need to decompress and load, when accessing data field
         # when COMPRESS_SERIALIZED_DAGS is True
-        self.__data_cache: dict[Any, Any] | None = dag_data
+        self.__data_cache = dag_data
 
     def __repr__(self) -> str:
         return f"<SerializedDag: {self.dag_id}>"
@@ -457,7 +448,7 @@ class SerializedDagModel(Base):
                 )
             )
 
-            if getattr(result, "rowcount", 0) == 0:
+            if result.rowcount == 0:
                 # No rows updated - serialized DAG doesn't exist
                 return False
             # The dag_version and dag_code may not have changed, still we should
@@ -500,7 +491,7 @@ class SerializedDagModel(Base):
     @provide_session
     def get_latest_serialized_dags(
         cls, *, dag_ids: list[str], session: Session = NEW_SESSION
-    ) -> Sequence[SerializedDagModel]:
+    ) -> list[SerializedDagModel]:
         """
         Get the latest serialized dags of given DAGs.
 
@@ -575,14 +566,14 @@ class SerializedDagModel(Base):
     @property
     def dag(self) -> SerializedDAG:
         """The DAG deserialized from the ``data`` column."""
-        DagSerialization._load_operator_extra_links = self.load_op_links
+        SerializedDAG._load_operator_extra_links = self.load_op_links
         if isinstance(self.data, dict):
             data = self.data
         elif isinstance(self.data, str):
             data = json.loads(self.data)
         else:
             raise ValueError("invalid or missing serialized DAG data")
-        return DagSerialization.from_dict(data)
+        return SerializedDAG.from_dict(data)
 
     @classmethod
     @provide_session
@@ -622,9 +613,8 @@ class SerializedDagModel(Base):
 
         :param session: ORM Session
         """
-        load_json: Callable
-        data_col_to_select: ColumnElement[Any] | InstrumentedAttribute[bytes | None]
-        if _COMPRESS_SERIALIZED_DAGS is False:
+        load_json: Callable | None
+        if COMPRESS_SERIALIZED_DAGS is False:
             dialect = get_dialect_name(session)
             if dialect in ["sqlite", "mysql"]:
                 data_col_to_select = func.json_extract(cls._data, "$.dag.dag_dependencies")
@@ -635,10 +625,10 @@ class SerializedDagModel(Base):
                 # Use #> operator which works for both JSON and JSONB types
                 # Returns the JSON sub-object at the specified path
                 data_col_to_select = cls._data.op("#>")(literal('{"dag","dag_dependencies"}'))
-                load_json = lambda x: x
+                load_json = None
             else:
                 data_col_to_select = func.json_extract_path(cls._data, "dag", "dag_dependencies")
-                load_json = lambda x: x
+                load_json = None
         else:
             data_col_to_select = cls._data_compressed
 
@@ -658,7 +648,11 @@ class SerializedDagModel(Base):
             .join(cls.dag_model)
             .where(~DagModel.is_stale)
         )
-        dag_depdendencies = [(str(dag_id), load_json(deps_data)) for dag_id, deps_data in query]
-        resolver = _DagDependenciesResolver(dag_id_dependencies=dag_depdendencies, session=session)
+        iterator = (
+            [(dag_id, load_json(deps_data)) for dag_id, deps_data in query]
+            if load_json is not None
+            else query.all()
+        )
+        resolver = _DagDependenciesResolver(dag_id_dependencies=iterator, session=session)
         dag_depdendencies_by_dag = resolver.resolve()
         return dag_depdendencies_by_dag

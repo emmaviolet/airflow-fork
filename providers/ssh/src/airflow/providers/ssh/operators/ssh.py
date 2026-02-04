@@ -22,7 +22,9 @@ from collections.abc import Container, Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from airflow.providers.common.compat.sdk import AirflowException, AirflowSkipException, BaseOperator, conf
+from airflow.configuration import conf
+from airflow.exceptions import AirflowException, AirflowSkipException
+from airflow.providers.common.compat.sdk import BaseOperator
 from airflow.providers.ssh.hooks.ssh import SSHHook
 
 try:

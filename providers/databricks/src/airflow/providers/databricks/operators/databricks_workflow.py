@@ -25,7 +25,8 @@ from typing import TYPE_CHECKING, Any
 
 from mergedeep import merge
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseOperator, TaskGroup
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseOperator, TaskGroup
 from airflow.providers.databricks.hooks.databricks import DatabricksHook, RunLifeCycleState
 from airflow.providers.databricks.plugins.databricks_workflow import (
     WorkflowJobRepairAllFailedLink,

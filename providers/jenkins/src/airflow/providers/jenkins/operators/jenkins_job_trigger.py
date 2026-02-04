@@ -29,7 +29,8 @@ import jenkins
 from jenkins import Jenkins, JenkinsException
 from requests import Request
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseOperator
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseOperator
 from airflow.providers.jenkins.hooks.jenkins import JenkinsHook
 
 JenkinsRequest = Mapping[str, Any]

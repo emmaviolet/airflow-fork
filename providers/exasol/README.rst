@@ -23,7 +23,7 @@
 
 Package ``apache-airflow-providers-exasol``
 
-Release: ``4.9.1``
+Release: ``4.8.4``
 
 
 `Exasol <https://www.exasol.com/>`__
@@ -36,7 +36,7 @@ This is a provider package for ``exasol`` provider. All classes for this provide
 are in ``airflow.providers.exasol`` python package.
 
 You can find package information and changelog for the provider
-in the `documentation <https://airflow.apache.org/docs/apache-airflow-providers-exasol/4.9.1/>`_.
+in the `documentation <https://airflow.apache.org/docs/apache-airflow-providers-exasol/4.8.4/>`_.
 
 Installation
 ------------
@@ -50,16 +50,15 @@ The package supports the following python versions: 3.10,3.11,3.12,3.13
 Requirements
 ------------
 
-==========================================  =====================================
-PIP package                                 Version required
-==========================================  =====================================
-``apache-airflow``                          ``>=2.11.0``
-``apache-airflow-providers-common-compat``  ``>=1.10.1``
-``apache-airflow-providers-common-sql``     ``>=1.26.0``
-``pyexasol``                                ``>=0.26.0``
-``pandas``                                  ``>=2.1.2; python_version < "3.13"``
-``pandas``                                  ``>=2.2.3; python_version >= "3.13"``
-==========================================  =====================================
+=======================================  =====================================
+PIP package                              Version required
+=======================================  =====================================
+``apache-airflow``                       ``>=2.10.0``
+``apache-airflow-providers-common-sql``  ``>=1.26.0``
+``pyexasol``                             ``>=0.26.0``
+``pandas``                               ``>=2.1.2; python_version < "3.13"``
+``pandas``                               ``>=2.2.3; python_version >= "3.13"``
+=======================================  =====================================
 
 Cross provider package dependencies
 -----------------------------------
@@ -71,24 +70,14 @@ You can install such cross-provider dependencies when installing from PyPI. For 
 
 .. code-block:: bash
 
-    pip install apache-airflow-providers-exasol[common.compat]
+    pip install apache-airflow-providers-exasol[common.sql]
 
 
-==================================================================================================================  =================
-Dependent package                                                                                                   Extra
-==================================================================================================================  =================
-`apache-airflow-providers-common-compat <https://airflow.apache.org/docs/apache-airflow-providers-common-compat>`_  ``common.compat``
-`apache-airflow-providers-common-sql <https://airflow.apache.org/docs/apache-airflow-providers-common-sql>`_        ``common.sql``
-==================================================================================================================  =================
-
-Optional dependencies
-----------------------
-
-==============  ======================
-Extra           Dependencies
-==============  ======================
-``sqlalchemy``  ``sqlalchemy>=1.4.49``
-==============  ======================
+============================================================================================================  ==============
+Dependent package                                                                                             Extra
+============================================================================================================  ==============
+`apache-airflow-providers-common-sql <https://airflow.apache.org/docs/apache-airflow-providers-common-sql>`_  ``common.sql``
+============================================================================================================  ==============
 
 The changelog for the provider package can be found in the
-`changelog <https://airflow.apache.org/docs/apache-airflow-providers-exasol/4.9.1/changelog.html>`_.
+`changelog <https://airflow.apache.org/docs/apache-airflow-providers-exasol/4.8.4/changelog.html>`_.

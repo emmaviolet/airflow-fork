@@ -23,7 +23,8 @@ from typing import Any
 
 import pagerduty
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseHook
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseHook
 
 
 class PagerdutyHook(BaseHook):

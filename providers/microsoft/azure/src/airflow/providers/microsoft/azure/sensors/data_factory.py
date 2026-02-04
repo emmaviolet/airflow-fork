@@ -21,7 +21,9 @@ from datetime import timedelta
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from airflow.providers.common.compat.sdk import AirflowException, BaseSensorOperator, conf
+from airflow.configuration import conf
+from airflow.exceptions import AirflowException
+from airflow.providers.common.compat.sdk import BaseSensorOperator
 from airflow.providers.microsoft.azure.hooks.data_factory import (
     AzureDataFactoryHook,
     AzureDataFactoryPipelineRunException,
@@ -30,7 +32,7 @@ from airflow.providers.microsoft.azure.hooks.data_factory import (
 from airflow.providers.microsoft.azure.triggers.data_factory import ADFPipelineRunStatusSensorTrigger
 
 if TYPE_CHECKING:
-    from airflow.sdk import Context
+    from airflow.utils.context import Context
 
 
 class AzureDataFactoryPipelineRunStatusSensor(BaseSensorOperator):

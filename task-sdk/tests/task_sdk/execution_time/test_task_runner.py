@@ -72,6 +72,32 @@ from airflow.sdk.exceptions import (
     ErrorType,
     TaskDeferred,
 )
+from airflow.listeners import hookimpl
+from airflow.listeners.listener import get_listener_manager
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import (
+    DAG,
+    BaseOperator,
+    Connection,
+    dag as dag_decorator,
+    get_current_context,
+    task as task_decorator,
+    timezone,
+)
+from airflow.sdk.api.datamodels._generated import (
+    AssetProfile,
+    AssetResponse,
+    DagRun,
+    DagRunState,
+    TaskInstance,
+    TaskInstanceState,
+    TIRunContext,
+)
+from airflow.sdk.bases.xcom import BaseXCom
+from airflow.sdk.definitions._internal.types import NOTSET, SET_DURING_EXECUTION, is_arg_set
+from airflow.sdk.definitions.asset import Asset, AssetAlias, AssetUniqueKey, Dataset, Model
+from airflow.sdk.definitions.param import DagParam
+from airflow.sdk.exceptions import ErrorType
 from airflow.sdk.execution_time.comms import (
     AssetEventResult,
     AssetEventsResult,
@@ -196,9 +222,9 @@ def test_parse(test_dags_dir: Path, make_ti_context):
     assert ti.task.dag
 
 
-@mock.patch("airflow.dag_processing.dagbag.BundleDagBag")
+@mock.patch("airflow.dag_processing.dagbag.DagBag")
 def test_parse_dag_bag(mock_dagbag, test_dags_dir: Path, make_ti_context):
-    """Test that checks that the BundleDagBag is constructed as expected during parsing"""
+    """Test that checks that the dagbag is constructed as expected during parsing"""
     mock_bag_instance = mock.Mock()
     mock_dagbag.return_value = mock_bag_instance
     mock_dag = mock.Mock(spec=DAG)
@@ -220,7 +246,6 @@ def test_parse_dag_bag(mock_dagbag, test_dags_dir: Path, make_ti_context):
         bundle_info=BundleInfo(name="my-bundle", version=None),
         ti_context=make_ti_context(),
         start_date=timezone.utcnow(),
-        sentry_integration="",
     )
 
     with patch.dict(
@@ -241,9 +266,9 @@ def test_parse_dag_bag(mock_dagbag, test_dags_dir: Path, make_ti_context):
 
     mock_dagbag.assert_called_once_with(
         dag_folder=mock.ANY,
+        include_examples=False,
         safe_mode=False,
         load_op_links=False,
-        bundle_path=test_dags_dir,
         bundle_name="my-bundle",
     )
 
@@ -2980,57 +3005,6 @@ class TestEmailNotifications:
                 )
                 assert kwargs["from_email"] == self.FROM
 
-    @pytest.mark.enable_redact
-    def test_rendered_templates_mask_secrets(self, create_runtime_ti, mock_supervisor_comms):
-        """Test that secrets registered with mask_secret() are redacted in rendered template fields."""
-        from unittest.mock import call
-
-        from airflow.sdk._shared.secrets_masker import _secrets_masker
-        from airflow.sdk.log import mask_secret
-
-        _secrets_masker().add_mask("admin_user_12345", None)
-
-        class CustomOperator(BaseOperator):
-            template_fields = ("username", "region")
-
-            def __init__(self, username, region, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.username = username
-                self.region = region
-
-            def execute(self, context):
-                # Only mask username
-                mask_secret(self.username)
-
-        task = CustomOperator(
-            task_id="test_masking",
-            username="admin_user_12345",
-            region="us-west-2",
-        )
-
-        runtime_ti = create_runtime_ti(task=task, dag_id="test_secrets_in_rtif")
-        run(runtime_ti, context=runtime_ti.get_template_context(), log=mock.MagicMock())
-
-        assert (
-            call(MaskSecret(value="admin_user_12345", name=None, type="MaskSecret"))
-            in mock_supervisor_comms.send.mock_calls
-        )
-        # Region should not be masked
-        assert (
-            call(MaskSecret(value="us-west-2", name=None, type="MaskSecret"))
-            not in mock_supervisor_comms.send.mock_calls
-        )
-
-        assert (
-            call(
-                msg=SetRenderedFields(
-                    rendered_fields={"username": "***", "region": "us-west-2"},
-                    type="SetRenderedFields",
-                )
-            )
-            in mock_supervisor_comms.send.mock_calls
-        )
-
 
 class TestDagParamRuntime:
     DEFAULT_ARGS = {
@@ -3268,6 +3242,14 @@ class TestTaskRunnerCallsListeners:
             self._add_outlet_events(context)
             self.error = error
 
+    @pytest.fixture(autouse=True)
+    def clean_listener_manager(self):
+        lm = get_listener_manager()
+        lm.clear()
+        yield
+        lm = get_listener_manager()
+        lm.clear()
+
     def test_task_runner_calls_on_startup_before_stopping(
         self, make_ti_context, mocked_parse, mock_supervisor_comms, listener_manager
     ):
@@ -3382,43 +3364,10 @@ class TestTaskRunnerCallsListeners:
         assert listener.state == [TaskInstanceState.RUNNING, TaskInstanceState.FAILED]
         assert listener.error == error
 
-    def test_task_runner_calls_listeners_skipped(self, mocked_parse, mock_supervisor_comms, listener_manager):
-        listener = self.CustomListener()
-        listener_manager(listener)
-
-        class CustomOperator(BaseOperator):
-            def execute(self, context):
-                raise AirflowSkipException("Task intentionally skipped")
-
-        task = CustomOperator(
-            task_id="test_task_runner_calls_listeners_skipped", do_xcom_push=True, multiple_outputs=True
-        )
-        dag = get_inline_dag(dag_id="test_dag", task=task)
-        ti = TaskInstance(
-            id=uuid7(),
-            task_id=task.task_id,
-            dag_id=dag.dag_id,
-            run_id="test_run",
-            try_number=1,
-            dag_version_id=uuid7(),
-        )
-
-        runtime_ti = RuntimeTaskInstance.model_construct(
-            **ti.model_dump(exclude_unset=True), task=task, start_date=timezone.utcnow()
-        )
-        log = mock.MagicMock()
-        context = runtime_ti.get_template_context()
-        state, _, _ = run(runtime_ti, context, log)
-        finalize(runtime_ti, state, context, log)
-
-        assert listener.state == [TaskInstanceState.RUNNING, TaskInstanceState.SKIPPED]
-
-    def test_listener_access_outlet_event_on_running_and_success(
-        self, mocked_parse, mock_supervisor_comms, listener_manager
-    ):
+    def test_listener_access_outlet_event_on_running_and_success(self, mocked_parse, mock_supervisor_comms):
         """Test listener can access outlet events through invoking get_template_context() while task running and success"""
         listener = self.CustomOutletEventsListener()
-        listener_manager(listener)
+        get_listener_manager().add_listener(listener)
 
         test_asset = Asset("test-asset")
         test_key = AssetUniqueKey(name="test-asset", uri="test-asset")
@@ -3475,12 +3424,10 @@ class TestTaskRunnerCallsListeners:
         ],
         ids=["ValueError", "SystemExit", "AirflowException"],
     )
-    def test_listener_access_outlet_event_on_failed(
-        self, mocked_parse, mock_supervisor_comms, exception, listener_manager
-    ):
+    def test_listener_access_outlet_event_on_failed(self, mocked_parse, mock_supervisor_comms, exception):
         """Test listener can access outlet events through invoking get_template_context() while task failed"""
         listener = self.CustomOutletEventsListener()
-        listener_manager(listener)
+        get_listener_manager().add_listener(listener)
 
         test_asset = Asset("test-asset")
         test_key = AssetUniqueKey(name="test-asset", uri="test-asset")

@@ -24,6 +24,7 @@ import boto3
 import pytest
 from slugify import slugify
 
+from airflow.exceptions import AirflowException
 from airflow.providers.amazon.aws.sensors.ecs import (
     EcsBaseSensor,
     EcsClusterStates,
@@ -35,9 +36,11 @@ from airflow.providers.amazon.aws.sensors.ecs import (
     EcsTaskStateSensor,
 )
 from airflow.providers.amazon.version_compat import NOTSET
-from airflow.providers.common.compat.sdk import AirflowException
 
-from tests_common.test_utils.compat import timezone
+try:
+    from airflow.sdk import timezone
+except ImportError:
+    from airflow.utils import timezone  # type: ignore[attr-defined,no-redef]
 
 _Operator = TypeVar("_Operator")
 TEST_CLUSTER_NAME = "fake-cluster"
